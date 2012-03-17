@@ -63,6 +63,7 @@ namespace FB { namespace View {
 
     private:
         HRESULT ConstructBrowser();
+        void DeconstructBrowser();
         IHTMLDocument2* GetDocument();
         void initPage();
         void InjectCustomObjects();

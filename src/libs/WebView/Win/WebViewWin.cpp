@@ -34,6 +34,7 @@ WebViewWin::WebViewWin( const FB::PluginCorePtr& plugin, const FB::BrowserHostPt
 
 WebViewWin::~WebViewWin()
 {
+    DeconstructBrowser();
     if (fbBrowserHostPtr) {
         fbBrowserHostPtr->shutdown();
         fbBrowserHostPtr.reset();
@@ -109,14 +110,17 @@ bool WebViewWin::onWindowAttached( FB::AttachedEvent *evt, FB::PluginWindowWin *
 
 bool WebViewWin::onWindowDetached( FB::DetachedEvent *evt, FB::PluginWindowWin *wnd )
 {
+    DeconstructBrowser();
+    return false;
+}
+
+void WebViewWin::DeconstructBrowser() {
     closePage();
 
     browserObject->SetClientSite(NULL);
     webBrowser.Release();
     browserObject->Close(OLECLOSE_NOSAVE);
     browserObject.Release();
-
-    return false;
 }
 
 HRESULT WebViewWin::ConstructBrowser()
