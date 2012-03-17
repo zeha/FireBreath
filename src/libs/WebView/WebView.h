@@ -61,6 +61,13 @@ namespace FB {namespace View {
             m_jsVariables[name] = val;
         }
         virtual FB::VariantMap& getJSVariables() { return m_jsVariables; }
+        // Set a script to run on each page load (not automatically cleared)
+        virtual void setJSOnReadyScript(const std::string& code) {
+            m_jsOnReadyScript = code;
+        }
+        virtual std::string& getJSOnReadyScript() {
+            return m_jsOnReadyScript;
+        }
 
     protected:
         FB::BrowserHostPtr getParentHost() {
@@ -74,6 +81,7 @@ namespace FB {namespace View {
         FB::BrowserHostWeakPtr m_parentBrowser;
         FB::PluginCoreWeakPtr m_plugin;
         FB::VariantMap m_jsVariables;
+        std::string m_jsOnReadyScript;
     };
 
 }}

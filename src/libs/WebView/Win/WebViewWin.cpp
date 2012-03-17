@@ -12,11 +12,11 @@ License:    Dual license model; choose one of two:
 Copyright 2011 Facebook, Inc
 \**********************************************************/
 
-
 #include "WebViewWin.h"
 #include "PluginEvents/AttachedEvent.h"
 #include "Win/PluginWindowWin.h"
 #include <stdexcept>
+#include <comdef.h>
 
 using namespace FB::View;
 
@@ -273,6 +273,22 @@ void WebViewWin::OnDocumentReady(const bool pageNeedsInit)
     //    // It is possible that the window won't allow us to set values; in this case,
     //    // we don't worry about it because we're likely at about:blank
     //}
+
+    IHTMLWindow2 *window;
+    if (!getJSOnReadyScript().empty())
+    {
+        hr = doc->get_parentWindow(&window);
+        if (FAILED(hr)) return;
+
+        _bstr_t code = getJSOnReadyScript().c_str();
+        _bstr_t language = "JavaScript";
+        _variant_t returnValue;
+        hr = window->execScript(code, language, &returnValue.Detach());
+        if (FAILED(hr)) {
+            FBLOG_DEBUG("", "window->execScript failed" << std::hex << hr);
+            return;
+        }
+    }
 }
 
 void WebViewWin::OnBeforeNavigate()
