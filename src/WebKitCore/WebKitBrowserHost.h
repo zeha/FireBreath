@@ -16,7 +16,7 @@
 #ifndef H_WEBKITBROWSERHOST
 #define H_WEBKITBROWSERHOST
 
-#include <JavaScriptCore.h>
+#include <JavaScriptCore/JavaScriptCore.h>
 #include <boost/thread/recursive_mutex.hpp>
 #include <objc/objc.h>
 #include <objc/runtime.h>

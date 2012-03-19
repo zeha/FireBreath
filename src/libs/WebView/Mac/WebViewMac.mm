@@ -245,7 +245,7 @@ bool FB::View::WebViewMac::onKeyDown(FB::KeyDownEvent *evt, FB::PluginWindowMacC
     NSEvent *keyEvt = [NSEvent keyEventWithType:evtType
                                        location:NSMakePoint(5, 5)
                                   modifierFlags:modifierFlags
-                                      timestamp:GetCurrentEventTime()
+                                      timestamp:[[NSProcessInfo processInfo] systemUptime]
                                    windowNumber:[o->helper.hiddenWindow windowNumber]
                                         context:[o->helper context]
                                      characters:eventChar
@@ -270,7 +270,7 @@ bool FB::View::WebViewMac::onKeyUp(FB::KeyUpEvent *evt, FB::PluginWindowMacCG *)
     NSEvent *keyEvt = [NSEvent keyEventWithType:evtType
                                        location:NSMakePoint(5, 5)
                                   modifierFlags:modifierFlags
-                                      timestamp:GetCurrentEventTime()
+                                      timestamp:[[NSProcessInfo processInfo] systemUptime]
                                    windowNumber:[o->helper.hiddenWindow windowNumber]
                                         context:[o->helper context]
                                      characters:eventChar
@@ -312,7 +312,7 @@ bool FB::View::WebViewMac::onMouseDown(FB::MouseDownEvent *evt, FB::PluginWindow
     NSEvent *mouseDown = [NSEvent mouseEventWithType:evtType
                                             location:where
                                        modifierFlags:nil
-                                           timestamp:GetCurrentEventTime()
+                                           timestamp:[[NSProcessInfo processInfo] systemUptime]
                                         windowNumber:[o->helper.hiddenWindow windowNumber]
                                              context:[o->helper context]
                                          eventNumber:nil
@@ -353,7 +353,7 @@ bool FB::View::WebViewMac::onMouseUp(FB::MouseUpEvent *evt, FB::PluginWindowMacC
     NSEvent *mouseEvent = [NSEvent mouseEventWithType:evtType
                                              location:where
                                         modifierFlags:nil
-                                            timestamp:GetCurrentEventTime()
+                                            timestamp:[[NSProcessInfo processInfo] systemUptime]
                                          windowNumber:[o->helper.hiddenWindow windowNumber]
                                               context:[o->helper context]
                                           eventNumber:nil
@@ -385,7 +385,7 @@ bool FB::View::WebViewMac::onMouseMove(FB::MouseMoveEvent *evt, FB::PluginWindow
     NSEvent *mouseEvent = [NSEvent mouseEventWithType:evtType
                                              location:where
                                         modifierFlags:nil
-                                            timestamp:GetCurrentEventTime()
+                                            timestamp:[[NSProcessInfo processInfo] systemUptime]
                                          windowNumber:[o->helper.hiddenWindow windowNumber]
                                               context:[o->helper context]
                                           eventNumber:nil
@@ -437,7 +437,7 @@ bool FB::View::WebViewMac::onMouseEntered(FB::MouseEnteredEvent *evt, FB::Plugin
 //    NSEvent *e = [NSEvent enterExitEventWithType:NSMouseEntered
 //                                        location:where
 //                                   modifierFlags:nil
-//                                       timestamp:GetCurrentEventTime()
+//                                       timestamp:[[NSProcessInfo processInfo] systemUptime]
 //                                    windowNumber:[o->helper.hiddenWindow windowNumber]
 //                                         context:[o->helper context]
 //                                     eventNumber:nil
@@ -455,7 +455,7 @@ bool FB::View::WebViewMac::onMouseExited(FB::MouseExitedEvent *evt, FB::PluginWi
 //    NSEvent *e = [NSEvent enterExitEventWithType:NSMouseExited
 //                                        location:where
 //                                   modifierFlags:nil
-//                                       timestamp:GetCurrentEventTime()
+//                                       timestamp:[[NSProcessInfo processInfo] systemUptime]
 //                                    windowNumber:[o->helper.hiddenWindow windowNumber]
 //                                         context:[o->helper context]
 //                                     eventNumber:nil
