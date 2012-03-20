@@ -23,7 +23,6 @@ using namespace FB::View;
 WebViewPtr WebView::create( const FB::PluginCorePtr& plugin, const FB::BrowserHostPtr& parentHost )
 {
     WebViewPtr ptr(boost::make_shared<WebViewWin>(plugin, parentHost));
-    ptr->init();
     return ptr;
 }
 

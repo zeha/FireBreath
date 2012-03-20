@@ -189,7 +189,6 @@ void FB::View::WebViewMac::onFrameClosing(void* frame)
 FB::View::WebViewPtr FB::View::WebView::create( const FB::PluginCorePtr& plugin, const FB::BrowserHostPtr& parentHost )
 {
     FB::View::WebViewPtr ptr(boost::make_shared<FB::View::WebViewMac>(plugin, parentHost));
-    ptr->init();
     return ptr;
 }
 
