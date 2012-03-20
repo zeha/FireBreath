@@ -13,6 +13,7 @@ Copyright 2011 Facebook, Inc
 \**********************************************************/
 
 #import <WebKit/WebKit.h>
+#include <QuartzCore/QuartzCore.h>
 #include "logging.h"
 #include "DOM.h"
 
@@ -20,6 +21,33 @@ Copyright 2011 Facebook, Inc
 
 #define OFFSCREEN_ORIGIN_X -4000
 #define OFFSCREEN_ORIGIN_Y -4000
+
+@interface WebViewCALayer : CALayer {
+    WebViewHelper* helper;
+}
+
+- (id)initWithWebViewHelper:(WebViewHelper*)helper;
+- (void)drawInContext:(CGContextRef)ctx;
+
+@end
+
+@implementation WebViewCALayer
+
+- (id)initWithWebViewHelper:(WebViewHelper*)wvh {
+    if (self = [super init]) {
+        helper = wvh;
+    }
+    return self;
+}
+
+- (void)drawInContext:(CGContextRef)ctx {
+    NSAutoreleasePool * pool = [NSAutoreleasePool new];
+    NSRect rect = NSRectFromCGRect(CGContextGetClipBoundingBox(ctx));
+    [helper drawToCGContext:ctx asRect:rect flipped:NO];
+    [pool release];
+}
+
+@end
 
 @implementation WebViewHelper
 
@@ -38,6 +66,10 @@ Copyright 2011 Facebook, Inc
 
 - (NSWindow*)hiddenWindow {
     return hiddenWindow;
+}
+
+- (CALayer*)caLayer {
+    return caLayer;
 }
 
 - (id)initWithFrame:(NSRect)frameRect {
@@ -62,6 +94,10 @@ Copyright 2011 Facebook, Inc
     mainFrame = [webView mainFrame];
     jsWindow = [webView windowScriptObject];
     [pool release];
+
+
+    caLayer = [[WebViewCALayer alloc] initWithWebViewHelper:self];
+
     return self;
 }
 
@@ -119,6 +155,8 @@ Copyright 2011 Facebook, Inc
 
 - (void)dealloc {
     FBLOG_DEBUG("WebViewHelper", FBLOG_FUNCTION());
+
+    [caLayer removeFromSuperlayer], [caLayer release];
     [webView release];
     [hiddenWindow release];
     [super dealloc];
@@ -208,9 +246,23 @@ void FB::View::WebViewMac::DrawToCGContext(CGContext* ctx, const FB::Rect& size,
 bool FB::View::WebViewMac::onWindowAttached(FB::AttachedEvent *evt, FB::PluginWindowMac *wnd)
 {
     NSRect frame = NSMakeRect(0, 0, wnd->getWindowWidth(), wnd->getWindowHeight());
+
+    if (o->helper != nil) {
+        [o->helper release], o->helper = nil;
+    }
     o->helper = [[WebViewHelper alloc] initWithFrame:frame];
-    [o->helper setController:this];    
-    
+    [o->helper setController:this];
+
+    FB::PluginWindowMac::DrawingModel dm = wnd->getDrawingModel();
+    if (dm == FB::PluginWindowMac::DrawingModelCoreAnimation ||
+        dm == FB::PluginWindowMac::DrawingModelInvalidatingCoreAnimation) {
+
+        CALayer* layer = [o->helper caLayer];
+        layer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
+        layer.needsDisplayOnBoundsChange = YES;
+        [(CALayer*)wnd->getDrawingPrimitive() addSublayer:layer];
+    }
+
     wnd->StartAutoInvalidate(1.0/30.0);
     return false;
 }

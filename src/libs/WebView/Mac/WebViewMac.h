@@ -90,12 +90,14 @@ namespace FB {
     WebFrame* mainFrame;
     FBViewWebViewWindow* hiddenWindow;
     NSGraphicsContext* windowContext;
+    CALayer* caLayer;
     
     FB::View::WebViewMac* controller;
 
     id jsWindow;
 }
 - (void)setController:(FB::View::WebViewMac*)c;
+- (void)drawToCGContext:(CGContextRef)ctx asRect:(NSRect)newSize flipped:(BOOL)flipped;
 @end
 namespace FB { namespace View {
     struct WebView_ObjCObjects {
