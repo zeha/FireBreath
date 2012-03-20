@@ -119,7 +119,7 @@ namespace FB { namespace View {
         void loadUri(const FB::URI& uri);
         void closePage();
 
-        void DrawToCGContext(CGContext* ctx, const FB::Rect& size);
+        void DrawToCGContext(CGContext* ctx, const FB::Rect& size, bool flipped);
 
         BEGIN_PLUGIN_EVENT_MAP()
             EVENTTYPE_CASE(FB::MouseDownEvent, onMouseDown, FB::PluginWindowMac)

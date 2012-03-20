@@ -77,7 +77,7 @@ Copyright 2011 Facebook, Inc
     [req release];
 }
 
-- (void)drawToCGContext:(CGContextRef)ctx asRect:(NSRect)newSize
+- (void)drawToCGContext:(CGContextRef)ctx asRect:(NSRect)newSize flipped:(BOOL)flipped
 {
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
@@ -90,9 +90,11 @@ Copyright 2011 Facebook, Inc
     [NSGraphicsContext saveGraphicsState];
     [NSGraphicsContext setCurrentContext:gc];
 
-    CGContextTranslateCTM(ctx, 0.0, newSize.size.height);
-    CGContextScaleCTM(ctx, 1.0, -1.0);
-    
+    if (!flipped) {
+        CGContextTranslateCTM(ctx, 0.0, newSize.size.height);
+        CGContextScaleCTM(ctx, 1.0, -1.0);
+    }
+
     [webView displayRectIgnoringOpacity:newSize inContext:gc];
 
     [NSGraphicsContext restoreGraphicsState];
@@ -193,12 +195,12 @@ void FB::View::WebViewMac::closePage()
     [nsUrl release];
 }
 
-void FB::View::WebViewMac::DrawToCGContext(CGContext* ctx, const FB::Rect& size)
+void FB::View::WebViewMac::DrawToCGContext(CGContext* ctx, const FB::Rect& size, bool flipped)
 {
     NSAutoreleasePool * pool = [NSAutoreleasePool new];
     NSRect newSize = NSMakeRect(0, 0, size.right-size.left, size.bottom-size.top);
     
-    [o->helper drawToCGContext:ctx asRect:newSize];
+    [o->helper drawToCGContext:ctx asRect:newSize flipped:(flipped ? YES : NO)];
     
     [pool release];
 }
@@ -476,7 +478,7 @@ bool FB::View::WebViewMac::onFocusChanged(FB::FocusChangedEvent *evt, FB::Plugin
 bool FB::View::WebViewMac::onCoreGraphicsDraw(FB::CoreGraphicsDraw *evt, FB::PluginWindowMacCG *wnd)
 {
     CGContextSaveGState(evt->context);
-    DrawToCGContext(evt->context, evt->bounds);
+    DrawToCGContext(evt->context, evt->bounds, true);
     CGContextRestoreGState(evt->context);
     
     return true;
