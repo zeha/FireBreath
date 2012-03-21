@@ -162,6 +162,7 @@ namespace FB { namespace View {
         
         virtual void onFrameLoaded(JSContextRef jsContext, JSObjectRef window, void* frame);
         virtual void onFrameClosing(void* frame);
+        virtual void onDocumentReady(void* frame);
         
         virtual FB::BrowserHostPtr getPageHost() {
             return m_host;

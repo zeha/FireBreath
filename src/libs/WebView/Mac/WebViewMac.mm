@@ -212,6 +212,11 @@ Copyright 2011 Facebook, Inc
     }
 }
 
+- (void)webView:(WebView *)sender didFinishLoadForFrame:(WebFrame *)frame {
+    if ([[frame name] isEqualToString:@""] && controller) {
+        controller->onDocumentReady(frame);
+    }
+}
 - (void)webView:(WebView *)sender didReceiveTitle:(NSString *)title forFrame:(WebFrame *)frame {
     if ([[frame name] isEqualToString:@""]) {
         [self setPageTitle:title];
@@ -249,6 +254,13 @@ void FB::View::WebViewMac::onFrameLoaded(JSContextRef jsContext, JSObjectRef win
         ++it;
     }
 }
+
+void FB::View::WebViewMac::onDocumentReady(void* frame) {
+    if (!getJSOnReadyScript().empty()) {
+        m_host->jsEval(getJSOnReadyScript());
+    }
+}
+
 void FB::View::WebViewMac::onFrameClosing(void* frame)
 {
     if (m_host) {
