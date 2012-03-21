@@ -88,13 +88,17 @@ namespace FB {
 {
     WebView* webView;
     WebFrame* mainFrame;
-    FBViewWebViewWindow* hiddenWindow;
+    NSWindow* window;
     NSGraphicsContext* windowContext;
     CALayer* caLayer;
+    NSString* windowTitle_;
+    BOOL usePopupWindow_;
     
     FB::View::WebViewMac* controller;
 
     id jsWindow;
+
+    BOOL madeVisible;
 }
 - (void)setController:(FB::View::WebViewMac*)c;
 - (void)drawToCGContext:(CGContextRef)ctx asRect:(NSRect)newSize flipped:(BOOL)flipped;

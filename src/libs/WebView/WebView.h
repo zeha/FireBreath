@@ -34,7 +34,8 @@ namespace FB {namespace View {
         typedef boost::function<void (WebView*, WebEvent)> WebEventCallback;
     public:
         WebView(const FB::PluginCorePtr& plugin, const FB::BrowserHostPtr& parentHost)
-            : m_parentBrowser(parentHost), m_plugin(plugin) {}
+            : m_parentBrowser(parentHost), m_plugin(plugin), m_windowTitle("FireBreath Plugin"),
+              m_usePopupWindow(false) {}
         virtual ~WebView() {}
 
         static WebViewPtr create(const FB::PluginCorePtr& plugin, const FB::BrowserHostPtr& parentHost);
@@ -68,6 +69,16 @@ namespace FB {namespace View {
         virtual std::string& getJSOnReadyScript() {
             return m_jsOnReadyScript;
         }
+        virtual void setUsePopupWindow(bool usePopupWindow, const std::string& windowTitle) {
+            m_usePopupWindow = usePopupWindow;
+            m_windowTitle = windowTitle;
+        }
+        virtual std::string& getWindowTitle() {
+            return m_windowTitle;
+        }
+        virtual bool usePopupWindow() {
+            return m_usePopupWindow;
+        }
 
     protected:
         FB::BrowserHostPtr getParentHost() {
@@ -82,6 +93,8 @@ namespace FB {namespace View {
         FB::PluginCoreWeakPtr m_plugin;
         FB::VariantMap m_jsVariables;
         std::string m_jsOnReadyScript;
+        std::string m_windowTitle;
+        bool m_usePopupWindow;
     };
 
 }}

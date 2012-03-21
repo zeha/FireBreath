@@ -64,53 +64,102 @@ Copyright 2011 Facebook, Inc
     return windowContext;
 }
 
-- (NSWindow*)hiddenWindow {
-    return hiddenWindow;
+- (NSWindow*)window {
+    return window;
 }
 
 - (CALayer*)caLayer {
     return caLayer;
 }
 
-- (id)initWithFrame:(NSRect)frameRect {
+- (id)initWithFrame:(NSRect)frameRect usePopupWindow:(BOOL)usePopupWindow windowTitle:(NSString*)title {
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+
+    usePopupWindow_ = usePopupWindow;
+    windowTitle_ = [title copy];
+
     NSRect windowRect = NSMakeRect(OFFSCREEN_ORIGIN_X, OFFSCREEN_ORIGIN_Y, frameRect.size.width, frameRect.size.height);
-    hiddenWindow = [[FBViewWebViewWindow alloc]
-        initWithContentRect:windowRect 
-                  styleMask:NSBorderlessWindowMask
-                    backing:NSBackingStoreBuffered
-                      defer:NO];
-    [hiddenWindow setIsActive:YES];
-    //[hiddenWindow makeKeyAndOrderFront:self];
-    [hiddenWindow setAcceptsMouseMovedEvents:YES];
-    [hiddenWindow setIgnoresMouseEvents:NO];
+
+    if (usePopupWindow_) {
+        madeVisible = NO;
+        int styleMask = NSTitledWindowMask|NSClosableWindowMask|NSResizableWindowMask|NSMiniaturizableWindowMask;
+        window = [[NSWindow alloc]
+                        initWithContentRect:windowRect
+                        styleMask:styleMask
+                        backing:NSBackingStoreBuffered
+                        defer:YES];
+    } else {
+        madeVisible = YES;
+        window = [[FBViewWebViewWindow alloc]
+                        initWithContentRect:windowRect
+                        styleMask:NSBorderlessWindowMask
+                        backing:NSBackingStoreBuffered
+                        defer:YES];
+        [(FBViewWebViewWindow*)window setIsActive:YES];
+    }
+
+    //[window makeKeyAndOrderFront:self];
+    [window setAcceptsMouseMovedEvents:YES];
+    [window setIgnoresMouseEvents:NO];
+
+    [window setTitle:windowTitle_];
 
     webView = [[WebView alloc] initWithFrame:frameRect frameName:nil groupName: nil];
     [webView setFrameLoadDelegate:self];
-    [hiddenWindow setContentView:webView];
-    windowContext = [[NSGraphicsContext graphicsContextWithWindow:hiddenWindow] retain];
-    [hiddenWindow makeFirstResponder:hiddenWindow.contentView];
+    [webView setUIDelegate:self];
+    [webView setResourceLoadDelegate:self];
+    [window setContentView:webView];
+
+    if (!usePopupWindow_) {
+        windowContext = [[NSGraphicsContext graphicsContextWithWindow:window] retain];
+    }
+
+    [window makeFirstResponder:window.contentView];
 
     mainFrame = [webView mainFrame];
     jsWindow = [webView windowScriptObject];
     [pool release];
 
-
-    caLayer = [[WebViewCALayer alloc] initWithWebViewHelper:self];
+    if (!usePopupWindow_) {
+        caLayer = [[WebViewCALayer alloc] initWithWebViewHelper:self];
+    }
 
     return self;
 }
 
+- (void)beginLoading {
+    [window setTitle:@"Loading..."];
+    if (!madeVisible) {
+        NSRect frame = NSMakeRect(0, 0, 650, 550);
+        [window setFrame:frame display:YES];
+        [window center];
+        NSApplication* app = [NSApplication sharedApplication];
+        [window makeKeyAndOrderFront:app];
+        [app activateIgnoringOtherApps:YES];
+        madeVisible = YES;
+    }
+}
+
 - (void)loadHTML:(NSString*)html baseUrl:(NSURL*)baseUrl {
+    [self beginLoading];
     [mainFrame loadHTMLString:html baseURL:baseUrl];
 }
 
 - (void)loadURL:(NSURL*)url {
     NSURLRequest *req = [[NSURLRequest alloc] initWithURL:url];
+    [self beginLoading];
 
     [mainFrame loadRequest:req];
 
     [req release];
+}
+
+- (void)setStatusText:(NSString*)statusText {
+    [window setTitle:[NSString stringWithFormat:@"%@: %@", windowTitle_, statusText]];
+}
+
+- (void)setPageTitle:(NSString*)pageTitle {
+    [window setTitle:[NSString stringWithFormat:@"%@ - %@", windowTitle_, pageTitle]];
 }
 
 - (void)drawToCGContext:(CGContextRef)ctx asRect:(NSRect)newSize flipped:(BOOL)flipped
@@ -139,26 +188,49 @@ Copyright 2011 Facebook, Inc
 
 - (void)webView:(WebView *)sender didClearWindowObject:(WebScriptObject *)windowObject forFrame:(WebFrame *)frame
 {
-    NSString* name = [frame name];
-    std::string str = [name UTF8String];
-    if (controller && str.empty())
+    if ([[frame name] isEqualToString:@""] && controller) {
         controller->onFrameLoaded([frame globalContext], [windowObject JSObject], frame);
+    }
 }
 
 - (void)webView:(WebView *)sender willCloseFrame:(WebFrame *)frame
 {
-    NSString* name = [frame name];
-    std::string str = [name UTF8String];
-    if (str.empty()) 
+    if ([[frame name] isEqualToString:@""]) {
         controller->onFrameClosing(frame);
+    }
+}
+
+- (void)webView:(WebView*)sender setStatusText:(NSString *)text {
+    if (![text isEqualToString:@""]) {
+        [self setStatusText:text];
+    }
+}
+
+- (void)webView:(WebView *)sender didStartProvisionalLoadForFrame:(WebFrame *)frame {
+    if ([[frame name] isEqualToString:@""]) {
+        [self setStatusText:@"Loading..."];
+    }
+}
+
+- (void)webView:(WebView *)sender didReceiveTitle:(NSString *)title forFrame:(WebFrame *)frame {
+    if ([[frame name] isEqualToString:@""]) {
+        [self setPageTitle:title];
+    }
+}
+
+- (BOOL)webViewIsStatusBarVisible:(WebView *)sender {
+    return YES;
 }
 
 - (void)dealloc {
     FBLOG_DEBUG("WebViewHelper", FBLOG_FUNCTION());
 
-    [caLayer removeFromSuperlayer], [caLayer release];
+    if (caLayer) {
+        [caLayer removeFromSuperlayer], [caLayer release];
+    }
     [webView release];
-    [hiddenWindow release];
+    [window release];
+    [windowTitle_ release];
     [super dealloc];
 }
 
@@ -249,26 +321,35 @@ bool FB::View::WebViewMac::onWindowAttached(FB::AttachedEvent *evt, FB::PluginWi
     if (o->helper != nil) {
         [o->helper release], o->helper = nil;
     }
-    o->helper = [[WebViewHelper alloc] initWithFrame:frame];
+    o->helper = [[WebViewHelper alloc]
+                 initWithFrame:frame
+                 usePopupWindow:(usePopupWindow() ? YES : NO)
+                 windowTitle:[NSString stringWithUTF8String:getWindowTitle().c_str()]
+                 ];
     [o->helper setController:this];
 
-    FB::PluginWindowMac::DrawingModel dm = wnd->getDrawingModel();
-    if (dm == FB::PluginWindowMac::DrawingModelCoreAnimation ||
-        dm == FB::PluginWindowMac::DrawingModelInvalidatingCoreAnimation) {
+    if (!usePopupWindow()) {
+        FB::PluginWindowMac::DrawingModel dm = wnd->getDrawingModel();
+        if (dm == FB::PluginWindowMac::DrawingModelCoreAnimation ||
+            dm == FB::PluginWindowMac::DrawingModelInvalidatingCoreAnimation) {
 
-        CALayer* layer = [o->helper caLayer];
-        layer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
-        layer.needsDisplayOnBoundsChange = YES;
-        [(CALayer*)wnd->getDrawingPrimitive() addSublayer:layer];
+            CALayer* layer = [o->helper caLayer];
+            layer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
+            layer.needsDisplayOnBoundsChange = YES;
+            [(CALayer*)wnd->getDrawingPrimitive() addSublayer:layer];
+        }
+
+        wnd->StartAutoInvalidate(1.0/30.0);
     }
 
-    wnd->StartAutoInvalidate(1.0/30.0);
     return false;
 }
 
 bool FB::View::WebViewMac::onWindowDetached(FB::DetachedEvent *evt, FB::PluginWindowMac *wnd)
 {
-    wnd->StopAutoInvalidate();
+    if (!usePopupWindow()) {
+        wnd->StopAutoInvalidate();
+    }
     [o->helper release];
     o->helper = nil;
     return false;
@@ -276,17 +357,21 @@ bool FB::View::WebViewMac::onWindowDetached(FB::DetachedEvent *evt, FB::PluginWi
 
 bool FB::View::WebViewMac::onWindowResized(FB::ResizedEvent *evt, FB::PluginWindowMac *win)
 {
-    if (o->helper) {
+    if (o->helper && !usePopupWindow()) {
         FB::Rect size = win->getWindowPosition();
         NSRect newSize = NSMakeRect(0, 0, size.right-size.left, size.bottom-size.top);
-        [o->helper.hiddenWindow setFrame:newSize display:YES];
+        [o->helper.window setFrame:newSize display:YES];
     }
-    
+
     return true;
 }
 
 bool FB::View::WebViewMac::onKeyDown(FB::KeyDownEvent *evt, FB::PluginWindowMac *)
 {
+    if (usePopupWindow()) {
+        return false;
+    }
+
     NSEventType evtType = NSKeyDown;
     
     int modifierFlags = evt->m_modifierFlags;
@@ -299,19 +384,23 @@ bool FB::View::WebViewMac::onKeyDown(FB::KeyDownEvent *evt, FB::PluginWindowMac 
                                        location:NSMakePoint(5, 5)
                                   modifierFlags:modifierFlags
                                       timestamp:[[NSProcessInfo processInfo] systemUptime]
-                                   windowNumber:[o->helper.hiddenWindow windowNumber]
+                                   windowNumber:[o->helper.window windowNumber]
                                         context:[o->helper context]
                                      characters:eventChar
                     charactersIgnoringModifiers:charBezMod
                                       isARepeat:NO
                                         keyCode:0];
 
-    [o->helper.hiddenWindow.firstResponder keyDown:keyEvt];
+    [o->helper.window.firstResponder keyDown:keyEvt];
     
     return true;
 }
 bool FB::View::WebViewMac::onKeyUp(FB::KeyUpEvent *evt, FB::PluginWindowMac *)
 {
+    if (usePopupWindow()) {
+        return false;
+    }
+
     NSEventType evtType = NSKeyUp;
     
     int modifierFlags = evt->m_modifierFlags;
@@ -324,25 +413,29 @@ bool FB::View::WebViewMac::onKeyUp(FB::KeyUpEvent *evt, FB::PluginWindowMac *)
                                        location:NSMakePoint(5, 5)
                                   modifierFlags:modifierFlags
                                       timestamp:[[NSProcessInfo processInfo] systemUptime]
-                                   windowNumber:[o->helper.hiddenWindow windowNumber]
+                                   windowNumber:[o->helper.window windowNumber]
                                         context:[o->helper context]
                                      characters:eventChar
                     charactersIgnoringModifiers:charBezMod
                                       isARepeat:NO
                                         keyCode:0];
 
-    [o->helper.hiddenWindow.firstResponder keyUp:keyEvt];
+    [o->helper.window.firstResponder keyUp:keyEvt];
 
     return true;
 }
 
 bool FB::View::WebViewMac::onMouseDown(FB::MouseDownEvent *evt, FB::PluginWindowMac *wnd)
 {
+    if (usePopupWindow()) {
+        return false;
+    }
+
     NSPoint where;
     where.x = evt->m_x;
     where.y = wnd->getWindowHeight()-evt->m_y;
     
-//    NSView* resp = [[o->helper.hiddenWindow contentView] hitTest:where];
+//    NSView* resp = [[o->helper.window contentView] hitTest:where];
     
     NSEventType evtType;
     
@@ -366,24 +459,28 @@ bool FB::View::WebViewMac::onMouseDown(FB::MouseDownEvent *evt, FB::PluginWindow
                                             location:where
                                        modifierFlags:nil
                                            timestamp:[[NSProcessInfo processInfo] systemUptime]
-                                        windowNumber:[o->helper.hiddenWindow windowNumber]
+                                        windowNumber:[o->helper.window windowNumber]
                                              context:[o->helper context]
                                          eventNumber:nil
                                           clickCount:1 
                                             pressure:nil];
 
-    //NSLog(@"%@", o->helper.hiddenWindow.firstResponder);
-    [o->helper.hiddenWindow.firstResponder mouseDown:mouseDown];
+    //NSLog(@"%@", o->helper.window.firstResponder);
+    [o->helper.window.firstResponder mouseDown:mouseDown];
     wnd->InvalidateWindow();
     return true;
 }
 bool FB::View::WebViewMac::onMouseUp(FB::MouseUpEvent *evt, FB::PluginWindowMac *wnd)
 {
+    if (usePopupWindow()) {
+        return false;
+    }
+
     NSPoint where;
     where.x = evt->m_x;
     where.y = wnd->getWindowHeight()-evt->m_y;
     
-//    NSView* resp = [[o->helper.hiddenWindow contentView] hitTest:where];
+//    NSView* resp = [[o->helper.window contentView] hitTest:where];
     NSEventType evtType;
     
 //    std::stringstream ss;
@@ -407,24 +504,28 @@ bool FB::View::WebViewMac::onMouseUp(FB::MouseUpEvent *evt, FB::PluginWindowMac 
                                              location:where
                                         modifierFlags:nil
                                             timestamp:[[NSProcessInfo processInfo] systemUptime]
-                                         windowNumber:[o->helper.hiddenWindow windowNumber]
+                                         windowNumber:[o->helper.window windowNumber]
                                               context:[o->helper context]
                                           eventNumber:nil
                                            clickCount:1 
                                              pressure:nil];
-//    NSLog(@"%@", o->helper.hiddenWindow.firstResponder);
-    [o->helper.hiddenWindow.firstResponder mouseUp:mouseEvent];
+//    NSLog(@"%@", o->helper.window.firstResponder);
+    [o->helper.window.firstResponder mouseUp:mouseEvent];
     wnd->InvalidateWindow();
     return true;
 }
 bool FB::View::WebViewMac::onMouseMove(FB::MouseMoveEvent *evt, FB::PluginWindowMac *wnd)
 {
+    if (usePopupWindow()) {
+        return false;
+    }
+
     NSPoint where;
     where.x = evt->m_x;
     where.y = wnd->getWindowHeight()-evt->m_y;
     
     NSEventType evtType;
-    //NSView* resp = [[o->helper.hiddenWindow contentView] hitTest:where];
+    //NSView* resp = [[o->helper.window contentView] hitTest:where];
     
     if (mouseButtonState == FB::MouseButtonEvent::MouseButton_Left) {
         evtType = NSLeftMouseDragged;
@@ -439,20 +540,20 @@ bool FB::View::WebViewMac::onMouseMove(FB::MouseMoveEvent *evt, FB::PluginWindow
                                              location:where
                                         modifierFlags:nil
                                             timestamp:[[NSProcessInfo processInfo] systemUptime]
-                                         windowNumber:[o->helper.hiddenWindow windowNumber]
+                                         windowNumber:[o->helper.window windowNumber]
                                               context:[o->helper context]
                                           eventNumber:nil
                                            clickCount:0
                                              pressure:nil];
     
-    //NSLog(@"%@", o->helper.hiddenWindow.firstResponder);
+    //NSLog(@"%@", o->helper.window.firstResponder);
 //    std::stringstream ss;
     if (evtType == NSMouseMoved) {
-        [o->helper.hiddenWindow.firstResponder mouseMoved:mouseEvent];
-        [o->helper.hiddenWindow.firstResponder mouseDragged:mouseEvent];
+        [o->helper.window.firstResponder mouseMoved:mouseEvent];
+        [o->helper.window.firstResponder mouseDragged:mouseEvent];
 //        ss << "Mouse moved at " << where.x << ", " << where.y;
     } else {
-        [o->helper.hiddenWindow.firstResponder mouseDragged:mouseEvent];
+        [o->helper.window.firstResponder mouseDragged:mouseEvent];
 //        ss << "Mouse dragged at " << where.x << ", " << where.y;
     }
 //    getParentHost()->htmlLog(ss.str());
@@ -462,6 +563,10 @@ bool FB::View::WebViewMac::onMouseMove(FB::MouseMoveEvent *evt, FB::PluginWindow
 }
 
 bool FB::View::WebViewMac::onMouseScroll(FB::MouseScrollEvent *evt, FB::PluginWindowMac *wnd) {
+    if (usePopupWindow()) {
+        return false;
+    }
+
     NSPoint where;
     where.x = evt->m_x;
     where.y = wnd->getWindowHeight()-evt->m_y;    
@@ -476,8 +581,8 @@ bool FB::View::WebViewMac::onMouseScroll(FB::MouseScrollEvent *evt, FB::PluginWi
     
     NSEvent *scrollEvent = [NSEvent eventWithCGEvent:cgEvent];
     
-    NSLog(@"%@", o->helper.hiddenWindow.firstResponder);
-    [o->helper.hiddenWindow.firstResponder scrollWheel:scrollEvent]; 
+    NSLog(@"%@", o->helper.window.firstResponder);
+    [o->helper.window.firstResponder scrollWheel:scrollEvent];
     CFRelease(cgEvent);
     
     return true;
@@ -486,17 +591,17 @@ bool FB::View::WebViewMac::onMouseEntered(FB::MouseEnteredEvent *evt, FB::Plugin
 //    NSPoint where;
 //    where.x = evt->m_x;
 //    where.y = wnd->getWindowHeight()-evt->m_y;
-//    NSView* resp = [[o->helper.hiddenWindow contentView] hitTest:where];
+//    NSView* resp = [[o->helper.window contentView] hitTest:where];
 //    NSEvent *e = [NSEvent enterExitEventWithType:NSMouseEntered
 //                                        location:where
 //                                   modifierFlags:nil
 //                                       timestamp:[[NSProcessInfo processInfo] systemUptime]
-//                                    windowNumber:[o->helper.hiddenWindow windowNumber]
+//                                    windowNumber:[o->helper.window windowNumber]
 //                                         context:[o->helper context]
 //                                     eventNumber:nil
 //                                  trackingNumber:0
 //                                        userData:nil];
-//    [o->helper.hiddenWindow.firstResponder mouseEntered:e];
+//    [o->helper.window.firstResponder mouseEntered:e];
     
     return true;
 }
@@ -504,30 +609,38 @@ bool FB::View::WebViewMac::onMouseExited(FB::MouseExitedEvent *evt, FB::PluginWi
 //    NSPoint where;
 //    where.x = evt->m_x;
 //    where.y = wnd->getWindowHeight()-evt->m_y;
-//    NSView* resp = [[o->helper.hiddenWindow contentView] hitTest:where];
+//    NSView* resp = [[o->helper.window contentView] hitTest:where];
 //    NSEvent *e = [NSEvent enterExitEventWithType:NSMouseExited
 //                                        location:where
 //                                   modifierFlags:nil
 //                                       timestamp:[[NSProcessInfo processInfo] systemUptime]
-//                                    windowNumber:[o->helper.hiddenWindow windowNumber]
+//                                    windowNumber:[o->helper.window windowNumber]
 //                                         context:[o->helper context]
 //                                     eventNumber:nil
 //                                  trackingNumber:0
 //                                        userData:nil];
-//    [o->helper.hiddenWindow.firstResponder mouseExited:e];
+//    [o->helper.window.firstResponder mouseExited:e];
     
     return true;
 }
 
 bool FB::View::WebViewMac::onFocusChanged(FB::FocusChangedEvent *evt, FB::PluginWindowMac *)
 {
-    [o->helper.hiddenWindow setIsActive:evt->hasFocus() ? YES : NO];
-    [o->helper.hiddenWindow.contentView setNeedsDisplay:YES];
+    if (usePopupWindow()) {
+        return false;
+    }
+
+    [(FBViewWebViewWindow*)o->helper.window setIsActive:evt->hasFocus() ? YES : NO];
+    [o->helper.window.contentView setNeedsDisplay:YES];
     return true;
 }
 
 bool FB::View::WebViewMac::onCoreGraphicsDraw(FB::CoreGraphicsDraw *evt, FB::PluginWindowMacCG *wnd)
 {
+    if (usePopupWindow()) {
+        return false;
+    }
+
     CGContextSaveGState(evt->context);
     DrawToCGContext(evt->context, evt->bounds, true);
     CGContextRestoreGState(evt->context);
